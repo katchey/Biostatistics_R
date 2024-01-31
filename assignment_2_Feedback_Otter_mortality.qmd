@@ -1,0 +1,198 @@
+---
+title: "Otter mortality in Vestland"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+---
+
+<!-- This assignment builds upon one of the tasks in the map-making datalab. -->
+
+<!-- Landa and Guidos [(2020)](https://doi.org/10.1111/csp2.208) explore causes of otter (_Lutra lutra_) mortality in Hordaland Fylke, where otter recently re-established after being extirpated by hunting. This paper (based on a Master's thesis) includes data up to 2018. -->
+
+<!-- File ExcelExport_7972978_Page_1a.xlsx contains data on otter sightings in Vestland (the file was downloaded from https://artsobservasjoner.no/ and edited slightly to remove an invalid character). -->
+
+<!-- Import the data and make a publication quality figure showing otter deaths from 2019 to the present. -->
+
+<!-- Relevant columns are "East Coord",	"North Coord", "Start Date", and "activity".  -->
+<!-- The coordinates UTM coordinates (UTM zone 33N, EPSG code 25833). -->
+
+<!-- Relevant activities are "Roadkill", "Drowned in fishing net", and "Found dead". -->
+
+
+```{r}
+#| label: setup
+#| message: false
+library(tidyverse)
+library(ggspatial)
+library(conflicted) # always a good idea to use conflicted
+library(here) # help find the data file
+
+conflicts_prefer(dplyr::filter)
+```
+
+```{r}
+#| label: import-data
+#| message: false
+otter <- readxl::read_excel(here("data/ExcelExport_7972978_Page_1a.xlsx"), skip = 2, sheet = "Export")|> # find the data rectangle with skip
+  janitor::clean_names() |> # sanitise column names
+  mutate(year = year(start_date)) # using lubridate
+
+dead_otter <- otter |> # filter required rows
+  filter(  # filter new deaths
+    year > 2018,
+    activity %in% c("Roadkill", "Drowned in fishing net", "Found dead"))
+
+```
+
+# First try
+
+```{r}
+#| label: make-first-map
+norway <- rnaturalearth::ne_countries(scale = 10, returnclass = "sf", country = "Norway")
+ggplot() +
+  geom_sf(data = norway) +
+  geom_spatial_point(
+    data = dead_otter, 
+    mapping = aes(x = east_coord,  y = north_coord, colour = activity), 
+    crs = 25833) +
+  coord_sf(xlim = c(4.5, 8), ylim = c(59.5, 62.2)) +
+  labs(x = "Longitude", y = "Latitude")
+```
+
+
+```{r}
+#| eval: false
+# alternative approach
+# make data into sf object 
+# no advantage in this case. Useful if you need to do GIS analyses first
+
+dead_otter_sf <- sf::st_as_sf(dead_otter, 
+                              coords = c("east_coord", "north_coord"), 
+                              crs = 25833)
+
+ggplot() +
+  geom_sf(data = norway) +
+  geom_sf(data = dead_otter_sf, mapping = aes(colour = activity)) +
+  coord_sf(xlim = c(4.5, 8), ylim = c(59.5, 62.2)) +
+  labs(x = "Longitude", y = "Latitude", colour = "Cause of death")
+```
+issues with first map
+
+- unhelpful theme
+- Colours not colourblind friendly
+  - change palette
+  - use shape
+  - make larger?
+- too many x-axis labels
+- do we really need latitude & longitude?
+- Is being dead an "activity"?
+
+```{r}
+#| label: make-second-map
+theme_set(theme_bw()) # set default theme
+norway <- rnaturalearth::ne_countries(scale = 10, returnclass = "sf", country = "Norway")
+ggplot() +
+  geom_sf(data = norway) +
+  geom_spatial_point(
+    data = dead_otter, 
+    mapping = aes(x = east_coord,  y = north_coord, colour = activity, shape = activity), 
+    crs = 25833, 
+    size = 3) +
+  coord_sf(xlim = c(4.5, 8), ylim = c(59.5, 62.2)) +
+  labs(colour = "Cause of death", shape = "Cause of death") +
+  scale_x_continuous(breaks = 4:10) + # only use integers on x axis
+  scale_color_viridis_d() +
+  theme(axis.title = element_blank()) # remove axis labels
+```
+Getting better. Would improve with
+
+- scalebar
+- geographic context
+- sufficient resolution
+- colours washed out - use symbols with outline
+
+```{r}
+#| label: make-better-map
+#| message: false
+
+norway <- sf::st_read("data/fylker2021.json") |> # higher resolution map
+  mutate(vestland = Fylkesnavn == "Vestland")
+
+vestland <- ggplot() +
+  geom_sf(data = norway, mapping = aes(fill = vestland), show.legend = FALSE) +
+ scale_fill_manual(values = c("FALSE" = "grey90", "TRUE" = "grey80")) +
+  ggnewscale::new_scale_fill() + # allow points to have fill
+  geom_spatial_point(
+    data = dead_otter, 
+    mapping = aes(x = east_coord,  y = north_coord, fill = activity, shape = activity), # using fill because using shapes > 20 
+    size = 3,
+    crs = 25833) +
+  scale_fill_viridis_d() +
+  scale_shape_manual(values = c(21, 23, 24)) +
+  scale_x_continuous(breaks = 4:10) + # only use integers on x axis
+  coord_sf(xlim = c(4.5, 10), ylim = c(59.5, 62.2), crs = 4326) +
+  labs(fill = "Cause of death", shape = "Cause of death") +
+  annotation_scale(location = "br") +
+  theme(
+    axis.title = element_blank(),
+    legend.position = c(0.99, 0.2), # move legend
+    legend.justification = c(1, 0)
+    )
+
+inset_map <- ggplot() +
+  geom_sf(data = norway, mapping = aes(fill = vestland), show.legend = FALSE) +
+  scale_fill_manual(values = c("FALSE" = "grey90", "TRUE" = "grey60")) +
+  theme(axis.text = element_blank(), 
+        axis.ticks = element_blank(), 
+         plot.margin = margin())
+  
+vestland +
+  patchwork::inset_element(inset_map, 0.6, 0.51, 0.99, 0.99)
+```
+
+```{r}
+#| label: leaflet
+# radical alternative
+library(leaflet)
+library(fontawesome)
+
+# covert dead otter to sf and transform to lat-long WGS84
+dead_otter_sf <- sf::st_as_sf(dead_otter, coords = c("east_coord", "north_coord"), crs = 25833) |> 
+  sf::st_transform(4326)  # Transform to lat long
+
+# make icons
+icon_list <- awesomeIconList(
+  Roadkill = makeAwesomeIcon(text = fa("car"), markerColor = "darkred"),
+  "Found dead" = makeAwesomeIcon(text = fa("otter"), markerColor = "blue"),
+  "Drowned in fishing net" = makeAwesomeIcon(text = fa("fish"), markerColor = "pink")
+)
+
+# leaflet map with icons
+leaflet(dead_otter_sf) |>  # initialise map
+#  setView(lat = (59.5 + 62.2) / 2, lng = (4.5 + 8) / 2, zoom = 7) |> 
+  fitBounds(lng1 = 4.5, lng2 = 8, lat1 = 59.5, lat2 = 62.2) |> 
+  addTiles() |> # add background map
+  addAwesomeMarkers(icon = ~ icon_list[activity], popup = ~ as.Date(start_date)) |> 
+  addScaleBar(position = "topleft", options = scaleBarOptions(imperial = FALSE)) |> 
+  addLegend(position = "bottomright",
+            colors = c("darkred", "pink", "lightblue"),
+            values = ~activity,
+            labels = c("Roadkill", "Drowned in fishing net", "Found dead"),
+            title = "Cause of death",
+            opacity = 1
+  ) |> 
+  addMiniMap(
+    position = 'topright', 
+    width = 200, height = 200,
+    toggleDisplay = FALSE)
+
+```
+```{r}
+#| label: ggoceanmaps-version
+library(ggOceanMaps)
+basemap(limits = c(4.5, 8, 59.5, 62.2), rotate = TRUE) + #Need rotate or slopes
+  geom_spatial_point(data = dead_otter, mapping = aes(x = east_coord, y = north_coord, colour = activity), crs = 25833)
+```
+

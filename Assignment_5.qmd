@@ -1,0 +1,90 @@
+---
+title: "Assignment_5"
+author: "Erika"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+editor: visual
+date: today
+execute:
+  warning: false
+  message: false
+---
+
+```{r}
+library(readr) #open csv
+library(tidyverse)
+library(car)
+library(performance)
+library(here)
+library(conflicted)
+conflict_prefer_all("dplyr", quiet = TRUE)
+library(broom) # tidy model output
+library(ggfortify) # autoplot model
+theme_set(theme_bw()) # set default theme
+library(lmerTest)
+conflict_prefer_all("lmerTest", quiet = TRUE)
+#install.packages("lmerTest")
+
+options("digits" = 2)
+```
+
+```{r}
+oto <- read_delim(file = "data/incrmement measurements.csv") |>
+  janitor::clean_names() |>
+  dplyr::select(area, fish_id, sex, age, increment) |>
+  dplyr::filter(age > 1) |>
+  dplyr::mutate(agelog = log10(age))
+
+```
+
+```{r}
+#plots
+#ggplot(data = oto,
+      # mapping = aes(x = sex, y = increment)) +
+ # geom_point() +
+ # labs(x = "Sex", y = " Increment: width of otolith annuli in mm") +
+ # theme_bw()
+
+ggplot(data = oto,
+       mapping = aes(x = agelog, y = increment, color = sex)) +
+  geom_point() +
+  #geom_line(aes(y = fitted)) +
+  labs(x = "Log of age in years", y = " Increment: width of otolith annuli in mm") +
+  theme_bw()
+
+
+  #Random slope:
+fm1 <- lmerTest::lmer(agelog ~ increment + (agelog|fish_id), oto)
+
+summary(fm1) 
+
+#random intercept:
+fm2 <- lmerTest::lmer(agelog ~ increment + (1|fish_id) + (0+agelog|fish_id), oto)
+
+summary(fm2) #random slope doesn't improve the model but random intercept does.
+
+#plot:
+#augment(fm1) |>
+ # ggplot(aes(x = agelog, y = increment)) +
+  #geom_point() +
+ # geom_line(aes(y = .fitted)) +
+ # geom_line(aes(y = .fixed, color = "black", linewidth = 1.5)) +
+  #theme(legend.position = "none")
+
+
+```
+
+```{r}
+performance::check_model(fm1)
+
+performance::check_model(fm2) #model fm2, with the random intercept, is better. It has more degrees of freedom and a significant t value.
+
+```
+
+```{r}
+#Make a publishable table showing the fixed effects and their uncertainties.
+coef(summary(fm2)) #the relationship is significant (t value is high)
+```

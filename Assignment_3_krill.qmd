@@ -1,0 +1,93 @@
+---
+title: "Assignment_3_krill"
+author: "Erika Scheibe"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+editor: visual
+date: today
+execute:
+  warning: false
+  message: false
+---
+
+```{r}
+
+#| label: load-packages
+#| message: false
+
+library(tidyverse)
+library(here)
+library(data.table)
+library(janitor)
+library(readxl)
+library(ggfortify)
+library(conflicted)
+conflict_prefer("filter", winner = "dplyr")
+library(broom)
+library(car)
+
+```
+
+```{r}
+#open file
+
+
+#| label: Import and clean data
+#| message: false
+
+filebehere <- here("data/Schaafsma-etal_2021.tab")
+
+krilll <- read_delim(
+  file = filebehere,
+  delim = "\t",
+  escape_double = FALSE,
+  trim_ws = TRUE,
+  skip = 192) |> 
+   janitor::clean_names() |> 
+  dplyr::select(Species = species,
+    Total_length_mm = tl_mm_see_comment_stereo_microscope,
+    Wet_mass_m = wet_m_mg_total_wet_mass_of_individual) |> 
+dplyr::filter(Species == "Euphausia superba") |> 
+dplyr::mutate(
+    Log10_Total_length_mm = log10(Total_length_mm),
+    Log10_Wet_mass_m = log10(Wet_mass_m))
+
+```
+
+```{r}
+
+#| label: Suitable reg model, Diagnostic plots
+#| message: false
+
+mod <- lm(Log10_Wet_mass_m ~ Log10_Total_length_mm, data = krilll)
+mod
+
+autoplot(mod) 
+
+#predict(object = mod)
+```
+
+I checked for non-normal distribution of the residuals. The points are on a straight line for the most part on the QQ plot; it appears to be normally distributed. There are a few outliers, but not that many. These outliers should be investigated to understand why they may be outliers (just a rare-sized krill, or incorrect data entry maybe (if number is way outside the norm), etc). There are not many outliers so I'll include it in the analysis.
+
+```{r}
+#| label: Expected wet mass (in mg) and prediction interval of a 30mm long E. superba
+#| message: false
+
+augment(mod, interval = "prediction") |>
+  ggplot(aes(x = Log10_Total_length_mm, y = Log10_Wet_mass_m)) +
+  geom_point() +
+  theme_bw() +
+  geom_ribbon(aes(ymin = .lower, ymax = .upper, alpha = .3)) +
+  geom_line(aes(y = .fitted)) +
+  labs(x = "Log10 Total E. superba length in mm",
+       y = "Log10 Total wet mass of individuals in mg") +
+  ggtitle("Allometry model: Euphausia superba prediction") +
+  geom_vline(xintercept = log10(30), linetype = "dotted")
+```
+
+Model results
+
+The least-squares regression model assumptions for body allometry or relationship between log-transformed total length and log-transformed wet mass for Euphausia superba were met. The model predicted that the expected wet mass of a single 30 mm long E. superba was 179.5 mg wet mass with a 95% confidence interval range of 175.6 to 183.4. The model gave significant results (p \< 0.001). 99% of the variance was explained by the predictor.

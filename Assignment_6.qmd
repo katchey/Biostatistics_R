@@ -1,0 +1,48 @@
+---
+title: "Assignment_6"
+author: "Erika Scheibe"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+editor: visual
+date: today
+execute:
+  warning: false
+  message: false
+---
+
+```{r}
+library(here)
+library(readr)
+library(survival)
+library(tidyverse)
+library(ggfortify)
+```
+
+```{r}
+lic <- read_delim(file = "data/timing_ES1to5.txt") |>
+  janitor::clean_names() |>
+  mutate(status_1 = recode(status, 
+                      "farmed" = "0", 
+                      "wild" = "1")) |>
+  dplyr::filter(es == 1) |>
+  mutate(status_1_numeric = as.numeric(status_1))
+
+```
+
+```{r}
+mod_sur <- survfit(Surv(days_pi, status_1_numeric) ~ origin, data = lic)
+
+mod_sur #This Survival Analysis model was chosen because the first day of laying the effs is how long it takes until the event we want to know happens. Next, the status (farmed or wild) is what we are wanting to know is different or not with our hypothesis (the two types of region). The origin matters because this is where the wild or farmed classes come from. 
+```
+
+```{r}
+autoplot(mod_sur)
+
+mod_diff <- survdiff(Surv(days_pi,status_1_numeric) ~ origin, data = lic)
+mod_diff #There is a sig diff, p < 0.001. We can reject H0, that there is no difference in time it takes the lice to start laying eggs between farmed and wild salmon. 
+
+summary(mod_sur)
+```

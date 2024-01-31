@@ -1,0 +1,227 @@
+---
+title: "Assignment 3. Allometry of Antarctic Krill"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+---
+
+<!-- We are interested in the allometry of Antarctic Krill _Euphausia superba_.  -->
+
+<!-- We want to find the relationship between log10 mass and log10 length (where length is the predictor). -->
+
+<!-- Fit a suitable regression model for _Euphausia superba_ measurements. -->
+
+<!-- Examine the diagnostic plots and comment on any potential issues. -->
+
+<!-- Make a publication quality plot showing your model (i.e. do not use geom_smooth) with its confidence interval, and the raw data. -->
+
+<!-- Find the expected wet mass (in mg) and the prediction interval of a single _Euphausia superba_ that is 30 mm long. -->
+
+<!-- The data, from Schaafsma et al (2022) https://doi.org/10.1007/s00300-021-02984-4 are in file, Schaafsma-etal_2021.tab, which was downloaded from Pangaea.de -->
+
+<!-- Relevant columns are -->
+
+<!-- Species -->
+
+<!-- TL [mm] (See Comment, Stereo Microscope) -- total length mm -->
+
+<!-- Wet m [mg] (Total wet mass of individual,...) -- Wet mass mg -->
+
+```{r}
+#| label: load-packages
+#| message: false
+
+library(tidyverse)
+library(here) # helps find data
+library(conflicted) # prevents name conflicts
+conflict_prefer_all("dplyr", quiet = TRUE)
+library(broom) # tidy model output
+library(ggfortify) # autoplot model
+theme_set(theme_bw()) # set default theme
+```
+
+```{r}
+#| label: load-data
+#| message: false
+all_species <- read_delim(here("data/Schaafsma-etal_2021.tab"), skip = 192) |> # skip the metadata
+  janitor::clean_names()  # sanitise column names
+
+E_superba <- all_species |> 
+  filter(species == "Euphausia superba") # filter required species
+```
+
+Two strategies
+
+1.  use mutate to make new columns of log10 transformed data
+2.  use log10() directly in the model formula
+
+Both are valid approaches, and both have consequences for how make predictions and plot the results
+
+```{r}
+#| label: make-model1
+# alternative 1
+E_superba <- E_superba |> 
+  mutate(
+    wet_mass_log = log10(wet_m_mg_total_wet_mass_of_individual),
+    total_length_log = log10(tl_mm_see_comment_stereo_microscope))
+
+mod1 <- lm(wet_mass_log ~ total_length_log, data = E_superba)
+```
+
+```{r}
+#| label: make-model2
+# Alternative 2
+mod2 <- lm(log10(wet_m_mg_total_wet_mass_of_individual) ~ log10(tl_mm_see_comment_stereo_microscope), data = E_superba) 
+
+# confirm mod 1 and 2 are same
+identical(as.vector(coef(mod1)), # need to remove names with as.vector
+          as.vector(coef(mod2)))
+
+# same for both approaches
+plot(mod2, which = 1) # id 125 is an outlier
+plot(mod2, which = 2) # heavy tails - id 125 outlier
+plot(mod2, which = 3) # reduced variance with higher fitted values. Perhaps due to measurement error being worse for small individuals
+plot(mod2, which = 4) # id 125 has highest influence
+plot(mod2, which = 5) # looks mostly OK. id 125
+
+```
+
+```{r}
+# with alternative 1
+pred1 <- augment(mod1, interval = "confidence")
+
+# could use predict(mod1, interval = "confidence")
+# but we would have to deal with missing values
+# Easiest to do this on import.
+
+pred1 |> 
+  ggplot(aes(x = total_length_log, y = wet_mass_log)) +
+  geom_point() +
+  geom_ribbon(aes(ymax = .upper, ymin = .lower), alpha = 0.3) +
+  geom_line(aes(y = .fitted)) +
+  labs(x = "log10 total length mm", y = "log10 wet mass mg")
+
+# with alternative 2
+
+# model 2 has difficult names - clean with janitor
+pred2 <- augment(mod2, interval = "confidence") |> 
+  janitor::clean_names() 
+
+
+pred2 |> 
+  ggplot(aes(x = log10_tl_mm_see_comment_stereo_microscope, y = log10_wet_m_mg_total_wet_mass_of_individual)) +
+  geom_point() + 
+  geom_ribbon(aes(ymax = upper, ymin = lower), alpha = 0.3) +
+  geom_line(aes(y = fitted)) +
+  labs(x = "log10 total length mm", y = "log10 wet mass mg")
+```
+
+Problems with figure
+
+over-plotting - use alpha to fix
+
+log10 scales are difficult to interpret.
+Consider having the plot show the original values on a log10 transformed axis, or showing the original scale, which will make the model a curve.
+The log scale is fine for a scientific audience , but the original scale is probably much easier for general public to read.
+
+CONSIDER YOUR AUDIENCE when choosing how to present the figure
+
+```{r}
+
+# use original data and transformed prediction , then use scale_x_log10 to transform axes
+E_superba |> 
+  ggplot(aes(x = tl_mm_see_comment_stereo_microscope, 
+             y = wet_m_mg_total_wet_mass_of_individual)) +
+  geom_point(alpha = 0.3) +  # alpha to show overplotting
+  geom_ribbon(data = pred2, aes(
+    x = 10^log10_tl_mm_see_comment_stereo_microscope, 
+    y = NULL,
+    ymin = 10^lower, 
+    ymax = 10^upper), 
+    alpha = 0.3) +
+  geom_line(data = pred2, aes(
+    x = 10^log10_tl_mm_see_comment_stereo_microscope, 
+    y = 10^fitted)) +
+  labs(x = "Total length mm", y = "Wet mass mg") +
+  scale_x_log10() +
+  scale_y_log10()
+
+
+# use transformed log data and transformed prediction, then show on original scale
+pred2 |> 
+  ggplot(aes(x = 10^log10_tl_mm_see_comment_stereo_microscope, 
+             y = 10^log10_wet_m_mg_total_wet_mass_of_individual)) +
+  geom_point(alpha = 0.3) +
+  geom_ribbon(aes(ymax = 10^upper, ymin = 10^lower), alpha = 0.3) +
+  geom_line(aes(y = 10^fitted)) +
+  labs(x = "Total length mm", y = "Wet mass mg") 
+```
+
+```{r}
+#| label: prediction-interval
+
+# Alternative 1 - need to log transform data first (if you don't, estimate is far heavier than observable universe!)
+pred_int1 <- augment(mod1, 
+        newdata = data.frame(total_length_log = log10(30)), 
+        interval = "prediction") 
+pred_int1
+
+# alternative 2 transforms data for you so give original scale
+pred_int2 <- augment(mod2, 
+        newdata = data.frame(tl_mm_see_comment_stereo_microscope = 30), 
+        interval = "prediction")
+pred_int2
+
+# convert to original scale mg
+pred_int2 |> 
+  mutate(across(c(.fitted, .lower, .upper), \(x){10^x}))
+```
+
+```{r}
+# calculate for text
+mod_sum <- summary(mod2)
+mod_anova <- anova(mod2)
+mod_result <- list(
+  r2 = mod_sum$r.squared |> round(2),
+  F_numdf = mod_sum$fstatistic["numdf"],
+  F_dendf = mod_sum$fstatistic["dendf"],
+  F_value =  mod_sum$fstatistic["value"] |>
+    round() |> as.character(),
+  slope = coef(mod2)[2] |> round(2),
+  ci = confint(mod2, level = 0.95)[2, ] |> round(2),
+  p = format.pval(mod_anova$`Pr(>F)`[1], eps = 0.001)
+)
+```
+
+An one unit increase in log~10~ total length, gave a increase of `r mod_result$slope` (95% CI \[`r mod_result$ci[1]`, `r mod_result$ci[2]`\]) units of log~10~ wet mass, R^2^ = `r mod_result$r2`, F(`r mod_result$F_numdf`,`r mod_result$F_dendf`) = `r mod_result$F_value`, p `r mod_result$p`.
+
+```{r}
+# For text like this, may be easier to use a glue chunk - can test it before you render it
+library(glue)
+# in glue chunk, all text needs to be on one line
+```
+
+```{glue}
+#| results: asis
+#| echo: fenced
+
+An one unit increase in log~10~ total length, gave a increase of {mod_result$slope} (95% CI  [{mod_result$ci[1]}, {mod_result$ci[2]}]) units of log~10~ wet mass, R^2^ = {mod_result$r2}, F({mod_result$F_numdf}, {mod_result$F_dendf}) = {mod_result$F_value}, p {mod_result$p}.
+```
+
+## Extra as requested
+
+Automatic outlier flagging
+
+```{r}
+
+outliers <- pred1 |> 
+  # anything more than n sd away from the fitted value is an outlier
+  mutate(outlier = .resid > 5 * sd(resid(mod1)))
+
+outliers |> 
+  ggplot(aes(x = total_length_log, y = wet_mass_log, colour = outlier)) +
+  geom_point(alpha = 0.3)
+
+```

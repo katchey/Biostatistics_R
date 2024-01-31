@@ -1,0 +1,99 @@
+---
+title: "Assignment 1"
+author: "Erika Johanna Scheibe"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+date: today
+editor: visual
+execute:
+  warning: false
+---
+
+```{r}
+
+#Load packages
+
+library(readxl)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(here)
+library(readr)
+library(gt)
+
+#import data using readxl package:
+catch <- read_excel(here("data/08991_20230913-224110.xlsx"), skip = 2) |>
+  janitor::clean_names()
+
+# Remove the first column by index with dplyr package:
+catch <- catch %>% select(-1)
+
+# THEN Rename columns by index
+colnames(catch)[1] <- "river"
+colnames(catch)[2] <- "year"
+colnames(catch)[6] <- "salmon_3_to_6.9_kg"
+colnames(catch)[15] <- "salmon_3_to_6.9_kg_pieces"
+
+#Use the tidyr::fill() function to fill in the missing river names.
+
+new_catch <- tidyr::fill(catch, river)
+
+```
+
+```{r}
+
+#get rid of hordaland, total data:
+new_catch2 <- new_catch |>
+  filter(!river == "Hordaland, total")
+
+```
+
+```{r}
+
+#For each river with a total catch of at least 100 fish, find the mean mass per fish (ie kg/pieces)
+
+#group the rivers, then find sum of pieces, then filter pieces >= 100:
+new_catch3 <- new_catch2 |>
+  drop_na(catch_salmon_sea_trout_and_migratory_char_kg, catch_salmon_sea_trout_and_migratory_char_pieces) |>
+  group_by(river) |>
+  filter(sum(catch_salmon_sea_trout_and_migratory_char_pieces) >= 100)
+
+#this code makes a new object called add_mean_column that has a new column called mean_mass_per_fish in it:
+add_mean_column <- new_catch3 |> 
+  group_by(river) |>
+  summarise(mean_mass_per_fish = sum(catch_salmon_sea_trout_and_migratory_char_pieces) / sum(catch_salmon_sea_trout_and_migratory_char_kg), 
+            pieces_sum = sum(catch_salmon_sea_trout_and_migratory_char_pieces))
+
+#5) Make a table showing showing the total number of fish caught and the mean mass per fish for the five rivers with the biggest fish, and the five with the smallest
+#Sort the data 
+sorted <- add_mean_column |>
+  arrange(mean_mass_per_fish)
+
+#slice data
+sliced_rivers <- sorted |> 
+  slice(1:5, 34:38)
+
+#make a table with gt package:
+final_table <- sliced_rivers |> 
+  gt() |>
+  tab_header(
+    title = "Fish catch by rivers in Hordaland",
+    subtitle = "Rivers with the top and bottom five mean mass per fish caught"
+  ) |>
+  cols_label(
+    river = "River",
+    mean_mass_per_fish = "Mean mass per fish (kg)",
+    pieces_sum = "Number of fish caught") 
+
+#show only two decimal places:
+options(digits = 2)
+
+#display final table:
+final_table
+
+```
+
+\`\`\`
