@@ -1,0 +1,173 @@
+---
+title: "Datalab_8"
+format: html
+editor: visual
+---
+
+```{r}
+
+
+library(palmerpenguins)
+library(ggfortify) #for diagnostic plots
+```
+
+```{r}
+
+# Task 1 2-way anova
+
+#- With the penguins data, fit models to predict body mass from species and sex with and without an interaction.
+
+
+mod_anova2 <- lm(body_mass_g ~ sex + species, data = penguins)
+
+mod_anova2
+
+#- Interpret the model coefficients.
+#3372 is the intercept, sexmale of 667.56 is how much it increases if it's a male, and species Chinstrap of 26.92 is how much it increases if Chinstrap and male (but add the male number too), and species Gentoo is the same but 1377. 
+
+summary(mod_anova2)
+coef(mod_anova2)
+
+#- Using only the coefficients, what is the expected mass of male and female Gentoos with each model.
+The expected mass of a male Gentoo is 3372 (intercept) + 667 (if male) + 1377 (if Gentoo). The expected mass of a female Gentoo is 3372 (intercept + 1377 (if Gentoo)).
+
+#- Examine the models' diagnostic plots
+library(ggfortify)
+autoplot(mod_anova2)
+
+#The Q-Q plot looks normal. The points on on the line.
+
+#- Test if the interaction improves the model.
+#mod_interact <- lm(body_mass_g ~ sex * species, data = penguins) #this line is incorrect
+#summary(mod_interact) #incorrect
+
+
+#idk if interaction improves the model?
+#The interaction for body mass between sex and Chinstrap is significant at the 0.01 level, but between sex and Gentoo is significant but at the 0.05 level.
+```
+
+```{r}
+#Task 1 Revisions with Answer Sheet:
+#- Using only the coefficients, what is the expected mass of male and female Gentoos with each model.
+
+
+
+coef(mod_anova2)["(Intercept)"] + coef(mod_anova2)["speciesGentoo"] 
+#4750 grams is the expected mass of a female Gentoo with no interaction model
+
+coef(mod_anova2)["(Intercept)"] + coef(mod_anova2)["speciesGentoo"] + coef(mod_anova2)["sexmale"] 
+#5417.8 grams is the expected mass of a male Gentoo with no interaction model.
+
+coef(mod_interact)["(Intercept)"] + coef(mod_interact)["speciesGentoo"]
+#4680 grams for male Gentoo mass for interaction mod
+
+coef(mod_interact)["(Intercept)"] + coef(mod_interact)["speciesGentoo"] + coef(mod_interact)["sexmale"]
+#5354 grams for male Gentoo expected weight w interaction
+
+#check 
+nd <- tibble(sex = c("female", "male"), species = "Gentoo")
+augment(mod_anova2, newdata = nd)
+
+augment(mod_interact, newdata = nd) #for some reason the male number doesn't match the above number (5354 above, but 5484 here). Not sure why.
+
+
+
+#- Test if the interaction improves the model.
+#correct answer:
+anova(mod_anova2, mod_interact) #yes it improves the model based on the sig, which is p<0.0001
+```
+
+```{r}
+#- Task 2 ancova
+
+#- With the Gentoo data, fit models to predict bill length from body mass and sex with and without an interaction.
+
+gentoo <- penguins |>
+  dplyr::filter(species == "Gentoo")
+
+mod_anova2_gent <- lm(bill_length_mm ~ sex + body_mass_g, data = gentoo)
+
+mod_anova2_gent
+
+summary(mod_anova2_gent)
+
+#with interaction:
+mod_anova2_gent_int <- lm(bill_length_mm ~ sex * body_mass_g, data = gentoo)
+
+mod_anova2_gent_int
+
+summary(mod_anova2_gent_int)
+
+#- Interpret the model coefficients:
+#without interactions, it is significant at all levels (+male, +body mass), but with interactions it is not significant.
+
+#- Using only the coefficients, what is the expected bill length of male and female Gentoos with body mass of 5000 g with each model.
+
+# with interactions model: expected bill length of female Gentoo with body mass 5000g is 5000g(0.0019) + 36.29 = 45.9 mm bill length. 
+
+#or do this like in answer sheet:
+
+#no interaction:
+#female: 46.455 mm
+coef(mod_anova2_gent)["(Intercept)"] + coef(mod_anova2_gent)["body_mass_g"] * 5000
+#male: 48.12 mm
+coef(mod_anova2_gent)["(Intercept)"] + coef(mod_anova2_gent)["body_mass_g"] *5000 + coef(mod_anova2_gent)["sexmale"]
+
+#with interactions:
+#female: 46.2 mm
+coef(mod_anova2_gent_int)["(Intercept)"] + coef(mod_anova2_gent_int)["body_mass_g"] * 5000
+#male: Incorrect: 40.73 mm #however ,the check says it's 47.83 mm, not 40.73 mm..... hmm....idk
+coef(mod_anova2_gent_int)["(Intercept)"] + coef(mod_anova2_gent_int)["body_mass_g"] * 5000 + coef(mod_anova2_gent_int)["sexmale"]
+
+#check
+nd <- tibble(sex = c("female", "male"), body_mass_g = 5000)
+augment(mod_anova2_gent, newdata = nd)
+augment(mod_anova2_gent_int, newdata = nd) #everything matches except for male without interactions.... idk why it's off all the time. 48.12 mm is the correct answer though.
+```
+
+```{r}
+#Task 2 cont'd
+
+#- Examine the models' diagnostic plots
+
+autoplot(mod_anova2_gent)
+autoplot(mod_anova2_gent_int) # they both look normal I htink
+
+
+```
+
+```{r}
+#- Plot the raw data and the models, including confidence intervals.
+
+#this was sorta correct I guess? I swapped the x and y axes though, and it has an extra smooth line for some reason.
+
+#ggplot(gentoo, aes(x = bill_length_mm, y = body_mass_g, color = sex)) +
+ # geom_point(alpha = 0.4) +
+  #geom_smooth(method = lm) +
+  #labs(x = "Bill length (mm)", y = "Body mass (g)")
+
+#Idk how to plot confidence intervals
+
+#correct answer:
+#I guess you want the variable you want to predict on the y axis? based on answer sheet.
+
+augment(mod_anova2_gent, interval = "confidence") |>
+  ggplot(aes(x = body_mass_g, y = bill_length_mm, color = sex)) +
+  geom_point() +
+  geom_ribbon(aes(ymax = .upper, ymin = .lower, group = sex), colour = NA, alpha = 0.3) +
+  geom_line(aes(y = .fitted))
+  
+
+#answer for testing if interactions improve the model:
+
+anova(mod_anova2_gent, mod_anova2_gent_int) # p > 0.05 - not significantly better
+```
+
+```{r}
+#task 3
+#- Use the MuMIn package to find the "best" model for predicting body mass of Adelie penguins.
+#- Is there a clear best model, or several good models?
+
+install.packages("MuMIn")
+library(MuMIn)
+```

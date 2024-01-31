@@ -1,0 +1,304 @@
+---
+title: "Datalab_9"
+format: html
+editor: visual
+---
+
+```{r}
+#Datalab 9
+
+library(tidyverse)
+library(here)
+library(conflicted)
+library(broom) #augment argument is in this library I believe
+conflict_prefer("filter", winner = "dplyr")
+
+search()
+```
+
+```{r}
+#Part 1: Relationship between Southern Ocean diatom richness and sea surface temperature.
+
+filebehere <- here("data/Esper-Gersonde_2014.tab")
+
+dia <- read_delim(
+  file = filebehere,
+  delim = "\t",
+  escape_double = FALSE,
+  trim_ws = TRUE,
+  skip = 156) |> 
+   janitor::clean_names()
+
+View(dia)
+```
+
+```{r}
+#- Tidy the data and find the species richness for each site ("Event") (i.e. number of diatoms with a percent > 0) (hint: `pivot_longer()` will help)
+#see 13.3 in Working in R
+
+dia_long <- dia |> 
+  pivot_longer(cols = a_actinochilus_percent:t_gravida_percent, names_to = "rich", values_to = "value")
+
+dia_long
+
+View(dia_long) #I think it worked but idk. There are still a few columns that idk what they are. But at the end I have the percent and the species in columns next to each other...
+
+#from 14.5 in Working in R
+filt_dia_long <- dia_long |> 
+  filter(value > 0)
+
+View(filt_dia_long)
+
+#next I think I just add up how many species have a percent > 0 per site. I already filtered out the spp with > 0. Now I just need to add them by site I think.
+
+group_event_count <- filt_dia_long |> 
+  group_by(event) |>
+  group_by(latitude) |>
+  count(event, na.rm = TRUE) #I grouped latitude also bc otherwise it gets rid of that column!!
+
+group_event_count #I counted the grouped events (which means sites), because there's one row for each site and each species that is there that has a percentage above zero. So I can count either, I believe. The tibble looks correct I believe. 
+```
+
+```{r}
+# plot and model data
+
+#- plot richness against latitude
+
+ggplot(data = group_event_count,
+       mapping = aes(x = latitude, y = n)) +
+  geom_point() +
+  labs(x = "Latitude", y = "Spp richness") +
+  theme_bw() +
+  geom_smooth()
+
+
+
+#- fit an appropriate model to find the relationship between richness and latitude
+?glm
+
+#I will use Poisson because it deals with counts, esp. of small numbers.
+
+mod <- glm(n ~ latitude, family = poisson, data = group_event_count)
+
+summary(mod)
+
+#- plot the fitted values from the model with the raw data. Is the model a good fit.
+#see 21.3 in Working in R
+
+performance::check_model(mod)
+
+#- interpret the model coefficients
+```
+
+```{r}
+# Part 2: #from solution
+
+#Find the relationship of the presence-absence of _Fragilariopsis cylindrus_ 'F. cylindrus [%]', a sea-ice associated diatom with latitude in the data from above. 
+
+#- plot the data
+augment(mod, type.predict = "response") |> 
+  ggplot(aes(x = latitude, y = n)) +
+  geom_point() +
+  geom_line(aes(y = .fitted))
+
+#- fit an appropriate model
+#- add the fitted model, with uncertainties, to the plot
+```
+
+```{r}
+#solutions
+# Part 2
+
+#Find the relationship of the presence-absence of _F. cylindrus_  with latitude in the data from above.
+
+#| label: f-cylindrus-data
+f_cylindrus_df <- dia |> 
+  mutate(f_cylindrus = sign(f_cylindrus_percent)) # can also use f_cylindrus_percent > 0
+
+#| label: f-cylindrus-plot
+set.seed(1)
+p_fc <- ggplot(f_cylindrus_df, aes(x = latitude, y = f_cylindrus)) +
+  geom_jitter(width = 0, height = 0.1)
+
+p_fc
+
+#| label: fc-mod
+mod_fc <- glm(f_cylindrus ~ latitude, data = f_cylindrus_df, family = binomial)
+mod_fc  
+performance::check_model(mod_fc) # first plot is hiding - dont know why
+# make again
+performance::check_posterior_predictions(mod_fc)
+
+
+- add the fitted model, with uncertainties, to the plot
+
+#| label: fc-plot2
+set.seed(1)
+augment(mod_fc, se_fit = TRUE) |> 
+  mutate(fitted = plogis(.fitted), 
+         upper = plogis(.fitted + 1.96 * .se.fit), 
+         lower = plogis(.fitted - 1.96 * .se.fit)) |> 
+  ggplot(aes(x = latitude, y = f_cylindrus)) +
+  geom_jitter(width = 0, height = 0.1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
+  geom_line(aes(y = fitted)) +
+  scale_y_continuous(breaks = c(0, 1), labels = c("Absent", "Present")) +
+  scale_x_continuous(labels = scales::label_number(suffix ="\u00b0")) +
+  labs(x = "Latitude", y = expression(italic(F~cylindrus)))
+```
+
+```{r}
+# Part 3
+
+#Find the relationship between the relative abundance of  _Fragilariopsis kerguelensis_ ("F. kerguelensis [%]"), perhaps the most abundant diatom in the Southern Ocean, with latitude
+
+#- plot the data
+
+#| label: ra-plot
+# need proportion data rather than percent
+
+f_kerguelensis_df <- dia |> 
+  mutate(f_kerguelensis_prop = f_kerguelensis_percent/100 )
+
+ggplot(f_kerguelensis_df, aes(x = latitude, y = f_kerguelensis_prop)) +
+  geom_point()
+
+#- fit an appropriate model including a quadratic term if necessary
+
+# can fit with proportion and weights
+mod_ra <- glm(f_kerguelensis_prop ~ latitude, 
+              data = f_kerguelensis_df,
+              family = binomial,
+              weights = diatoms_number)
+
+# warning message because of rounding errors 
+f_kerguelensis_df |> 
+  filter(f_kerguelensis_prop > 0) |> 
+  mutate(fk = f_kerguelensis_prop * diatoms_number) |> 
+  select(f_kerguelensis_prop, fk) |>  # non-integers
+  as.data.frame() |> 
+  head()
+
+tidy(mod_ra)
+
+performance::check_model(mod_ra) # terrible fit!
+
+#quadratic model
+# why poly
+cor(f_kerguelensis_df$latitude, f_kerguelensis_df$latitude ^ 2)
+
+poly(f_kerguelensis_df$latitude, 2) |> cor()
+
+poly(f_kerguelensis_df$latitude, 2) |> 
+  as.data.frame() |> 
+  mutate(latitude = f_kerguelensis_df$latitude, 
+         LATITUDE = latitude, 
+         latitude2 = latitude ^ 2) |> 
+  pivot_longer(-LATITUDE) |> 
+  ggplot(aes(x = LATITUDE, y = value, colour = name)) +
+  geom_line() +
+  facet_wrap(vars(name), scales = "free_y")
+
+# quadratic model
+
+mod_bad <- glm(f_kerguelensis_prop ~ latitude + latitude ^ 2, #fails
+              data = f_kerguelensis_df,
+              family = binomial,
+              weights = diatoms_number)
+
+coef(mod_bad) # no quadratic term!
+# need to protect quadratic with I() or it is interpreted as an interaction
+
+mod_ra2a <- glm(f_kerguelensis_prop ~ latitude + I(latitude ^ 2), 
+              data = f_kerguelensis_df,
+              family = binomial,
+              weights = diatoms_number)
+
+# with poly
+mod_ra2b <- glm(f_kerguelensis_prop ~ poly(latitude, 2), 
+              data = f_kerguelensis_df,
+              family = binomial,
+              weights = diatoms_number)
+
+
+summary(mod_ra2a)
+summary(mod_ra2b)
+
+#is quadratic needed
+anova(mod_ra, mod_ra2b, test = "Chi") # yes
+
+#- is there evidence of overdispersion?
+  
+anova(mod_ra2b) # residual deviance >> residual df
+
+performance::check_model(mod_ra2b) # better but still bad. over dispersed
+
+performance::check_overdispersion(mod_ra2b)
+
+
+- adjust the model if necessary
+
+```
+
+```{r}
+mod_ra_quasi1 <- glm(f_kerguelensis_prop ~poly(latitude, 1), 
+              data = f_kerguelensis_df,
+              family = quasibinomial,# change to quasibinomial to allow for overdispersion
+              weights = diatoms_number)
+
+mod_ra_quasi2 <- glm(f_kerguelensis_prop ~poly(latitude, 2), 
+              data = f_kerguelensis_df,
+              family = quasibinomial,# change to quasibinomial to allow for overdispersion
+              weights = diatoms_number)
+
+#test is quadratic model still needed with quasibinomial
+anova(mod_ra_quasi1, mod_ra_quasi2, test = "F")
+
+# comparing binomial and quasibinomial
+tidy(mod_ra2b) # binomial
+tidy(mod_ra_quasi2) # quasibinomial
+#coefficients are the same
+
+
+anova(mod_ra_quasi2) # now got "permission" for Resid. Dev/ Resid Df >> 1
+performance::check_model(mod_ra_quasi2)
+
+```
+
+```{r}
+#- add the fitted model, with uncertainties, to the plot
+
+# binomial model
+augment(mod_ra2b, se_fit = TRUE) |> 
+  mutate(fitted = plogis(.fitted), 
+         upper = plogis(.fitted + 1.96 * .se.fit), 
+         lower = plogis(.fitted - 1.96 * .se.fit), 
+         latitude = dia$latitude) |> 
+  ggplot(aes(x = latitude, y = f_kerguelensis_prop)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
+  geom_line(aes(y = fitted)) 
+
+# with quasibinomial
+# line on above plot not smooth because bending too much in region with few data points for predictions. Solve by making predictions for new data on regular grid
+
+nd <- tibble(latitude = seq(min(dia$latitude), max(dia$latitude), length.out = 200))
+
+preds <- augment(mod_ra_quasi2, se_fit = TRUE, newdata = nd) |> 
+  mutate(fitted = plogis(.fitted), 
+         upper = plogis(.fitted + 1.96 * .se.fit), 
+         lower = plogis(.fitted - 1.96 * .se.fit)) 
+
+ggplot(f_kerguelensis_df, aes(x = latitude, y = f_kerguelensis_prop)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = lower, ymax = upper, y  = NULL), data = preds, alpha = 0.3) +
+  geom_line(aes(y = fitted), data = preds) +
+  scale_x_continuous(labels = scales::label_number(suffix ="\u00b0")) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  labs(x = "Latitude", y = expression(italic(F~kerguelensis)))
+  
+
+# wider ( & more realistic) confidence interval
+# much smoother curve
+# would want to check obs at 61 S is correct
+```

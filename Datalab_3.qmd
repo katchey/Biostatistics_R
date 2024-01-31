@@ -1,0 +1,430 @@
+---
+title: "DataLab_3"
+author: "Erika Scheibe"
+format: html
+editor: visual
+---
+
+```{r}
+#install.packages(c('ggplot2', 'tidyr', 'here', 'dplyr', 'tidyverse'))
+#install.packages("readxl")
+#install.packages(janitor)
+library(readxl)
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(here)
+library(readr)
+
+
+
+usethis::use_zip("biostats-r/biostats-data")
+
+save.image()
+
+library(tidyverse)
+weather <- read_delim(file = "data/weather.csv")
+
+spec(weather)
+show_col_types = FALSE
+weather
+
+#using here in the below code is better bc you can find the R Project root
+library(here)
+weather <- read_delim(file = here("data/weather.csv"))
+
+
+spec(weather)
+problems(weather)
+```
+
+```{r}
+weather2 <- read_delim(file = "data/weather2.csv")
+spec(weather2)
+
+weather2
+
+weather3 <- read_delim(file = "data
+                       /weather2.csv", 
+                       locale = locale
+                       (decimal_mark = ","
+                         ))
+spec(weather3)
+
+#11.6.4 read_csv2()
+#A shortcut for files with a “;” as the column delimiter and commas as the decimal separator is read_csv2().
+
+weather_csv2 <- read_csv2(file = "data/weather2.csv")
+spec(weather_csv2)
+weather_csv2
+
+weather <- read_delim(file = "data/weather.csv", 
+                      n_max = 6)
+weather
+
+weather <- read_delim(file = "data/weather.csv", 
+                      skip = 1)
+
+#11.6.5.3
+weather <- read_delim(file = "data/weather.csv", 
+                      skip = 1,
+                      col_names = c("Month", "Temp", "Precip", "Wind"))
+weather
+
+install.packages("janitor")
+library(janitor)
+
+weather <- read_delim(file = "data/weather.csv") |> 
+  janitor::clean_names()
+
+weather
+
+counts <- read_delim(file = "data/groups.csv")
+counts
+
+counts <- read_delim(file = "data/groups.csv",
+                     col_types = cols(col_double(), col_factor(), col_integer
+                                      ()))
+counts
+
+countsdates <- read_delim(file = "data/groups-dates1.csv")
+countsdates
+
+countsdates <- read_delim(file = "data/groups-dates2.csv")
+countsdates
+countsdates <- read_delim(file = "data/groups-dates2.csv", 
+                     col_types = cols(date = col_date("%d-%m-%Y")))
+countsdates
+
+read_table(" Species   Value
+            Navicula       1
+            Cymbella       2")
+
+
+#exercise
+exercise1 <- read_table(file = "data/alaska2011midge-t.txt",
+                        skip = 273,
+                        n_max = 83)
+
+           
+spec(exercise1)
+exercise1
+```
+
+```{r}
+#11.7 Excel files
+
+#Excel files can be imported with the readxl package which is installed with tidyverse but not loaded until you run library(readxl). The function read_excel() will import the data; it can be worth using excel_sheets() first to check the names of the sheets.
+
+
+
+library(readxl)
+excel_sheets(path = "data/biomass2015.xls")
+biomass_l <- read_excel(path = "data/biomass2015.xls", sheet = "Site L")
+
+#exercise2:
+biomass_2 <- read_excel(path = "data/biomass2015.xls", sheet = "Site A")
+```
+
+```{r}
+#12.3 exercise
+
+# Load the data
+data("penguins", package = "palmerpenguins")
+# Show the data
+penguins
+
+
+#Re-write the following code to use pipes, then check then result is the same
+
+adelie <- filter(penguins, species == "Adelie")
+  
+adelie_grouped <- group_by(adelie, sex)
+
+adelie_summary <- summarise(adelie_grouped, mean_body_mass = mean(body_mass_g))
+
+#pipe version:
+adelie <- penguins |>
+  dplyr::filter(species == "Adelie") |>
+  dplyr::group_by(sex) |>
+  dplyr::summarize(mean_body_mass = mean(body_mass_g))
+
+
+
+save.image()
+```
+
+```{r}
+#Chapter 13
+
+#install.packages(c('readr', 'ggplot2', 'tidyr', 'here', 'dplyr'))
+
+library(tidyr)
+library(ggplot2)
+library(readr)
+library(dplyr) 
+library(here) 
+
+search()
+
+
+#exercise3: With the Mt Gonga data downloaded previously, pivot the data so that the height data (H1-H10) are in one column.
+#Hint: pivot_longer
+
+library(readr)
+biomass2015_H <- read_csv("data/biomass2015_H.csv")
+View(biomass2015_H)
+spec(biomass2015_H)
+
+
+biomass2015_H |>
+  pivot_longer(cols = H1:H10, names_to = "Height", values_to = "value")
+
+biomass2015_H
+
+#No idea.... this is wrong and idk how to find out the answer.........
+
+```
+
+```{r}
+#Chapter 14
+
+#install.packages('tidyverse')
+library(tidyverse)
+
+#install.packages('tidylog')
+library("tidylog")
+
+# Load the data
+data("penguins", package = "palmerpenguins")
+# Show the data
+penguins
+
+penguins |>
+  select(species, bill_length_mm, bill_depth_mm)
+
+#Exercise 1 in Ch. 14:
+penguins |>
+   dplyr::select(-year)
+#It worked this time!
+
+#to save it to an object called selected_penguins:
+selected_penguins <- penguins |> 
+  dplyr::select(-year)
+
+save.image()
+
+```
+
+```{r}
+#Ch. 14 cont'd
+#select species to bill_depth_mm
+penguins |> select(species:bill_depth_mm)
+
+#Exercise 2 in ch. 14
+
+penguins |> select(-where(is.numeric))  #to selected everything that is not numeric in the columns
+
+penguins |> 
+  select(ends_with("_mm"))
+
+#continue on in the chapter now: 14.3 renaming columns
+penguins |> rename(Species = species)
+penguins
+
+penguins |> relocate(island)
+
+penguins |> filter(bill_length_mm > 40)
+
+penguins |> 
+  filter(species %in% c("Adelie", "Chinstrap"))
+
+penguins |>
+  filter(bill_length_mm > 40 | bill_depth_mm > 18) #| means or. just use a comma if you want both to be true (section 14.5.1)
+
+penguins |> filter(!bill_length_mm > 40) #the ! makes it filter ones that are not that
+
+#Exercise 3 in Ch. 14:
+penguins |>
+  filter(species == "Gentoo")
+
+penguins |>
+  filter(species %in% c("Gentoo", "Adelie"))
+
+penguins |>
+  filter(body_mass_g >= 5000)
+
+penguins |> 
+  filter(between(bill_length_mm, left = 45, right = 50))
+
+penguins |>
+  filter(!island == "Dream") #filter penguins not from Dream island
+```
+
+```{r}
+#14.6 slicing the data with slice()
+
+penguins |> slice(3:7)
+
+#exercise 14.7 in ch. 14:
+penguins |> distinct(island)
+
+penguins |> distinct(species)
+
+penguins |> 
+  distinct(c(species, island, sex))
+
+#IDK if the below is correct for the exercise
+penguins |> 
+  group_by(species, island, sex) |> 
+  slice(1)
+
+```
+
+```{r}
+#14.8 random rows
+
+#add new column and perform operation on it:
+penguins |> 
+  mutate(body_mass_kg = body_mass_g / 1000)
+
+#summarize
+penguins |> summarize(
+  flipper_len_mean = mean(flipper_length_mm, na.rm = TRUE), 
+  flipper_len_sd = sd(flipper_length_mm, na.rm = TRUE)
+  )
+
+#exercise 14. 10:
+penguins |> summarize(
+  max_bill_length_mm = max(bill_length_mm, na.rm = TRUE),
+  min_bill_length_mm = min(bill_length_mm, na.rm = TRUE)
+)
+
+#14.10.1
+penguins |>
+   summarise(
+     across(c(bill_length_mm, bill_depth_mm), 
+            .fns = \(x)mean(x, na.rm = TRUE)))
+
+#using a list of functions
+penguins |>
+  summarise(
+    across(.cols = starts_with("bill"), 
+           .fns = list(sd = \(x)sd(x, na.rm = TRUE), 
+                       mean = \(x)mean(x, na.rm = TRUE))))
+
+#14.11
+penguins |> 
+  group_by(species) |> 
+  summarise(mean_flipper_length = mean(flipper_length_mm))
+
+#Grouped data can be ungrouped with ungroup(). This can help prevent surprises!
+
+#Exercise 14.11: Note: it's not correct, I needed to do min too. but idk.
+penguins |> 
+  group_by(species) |> 
+  summarise(max_bill_length = max(bill_length_mm, na.rm = TRUE)) #remember na.rm = TRUE
+
+penguins |> 
+  group_by(species) |> 
+  summarise(min_bill_length = min(bill_length_mm, na.rm = TRUE))
+
+save.image()
+```
+
+```{r}
+#14.12
+
+penguins |> arrange(bill_length_mm, bill_depth_mm)
+
+penguins |> arrange(desc(bill_length_mm), desc(bill_depth_mm))
+
+#Exercise:
+penguins |>
+  arrange(body_mass_g)
+
+penguins |>
+  arrange(island, desc(body_mass_g))
+
+
+#14.13
+penguins |> 
+  group_by(species) |> 
+  summarise(n = n())
+
+penguins |> 
+  count(species)
+
+#Exercise:
+penguins |>
+  group_by(island) |>
+  count(species)
+
+#14.14.1
+df <- tibble(`Region/Country` = "Norway", value = 42)
+df
+
+df |> rename(region_country = `Region/Country`)
+
+#or just use this and not the previous command:
+janitor::clean_names(df)
+clean_names(df)
+
+```
+
+```{r}
+#Chapter 15
+
+# location of the three islands in the Palmer Archipelago
+library(dplyr)
+
+penguin_islands <- tribble(
+  ~ island, ~ Latitude, ~ Longitude, # tribble is a convenient way to make small datasets
+  "Torgersen", -64.766667,-64.083333,
+  "Biscoe", -64.818569, -63.775636,
+  #"Dream",  -64.733333, -64.233333, # Dream data missing
+  "Alpha", -64.316667, -63)
+
+penguin_islands
+
+penguin_small <- penguins |> 
+  group_by(species) |> 
+  slice(1:2) # small version of data for easy viewing
+
+#below code didn't work
+left_join(penguin_small, penguin_islands, by = join_by(island))
+#phind told me this would work: and it works
+result <- left_join(penguin_small, penguin_islands, by = "island")
+result
+
+#exercise:
+
+joinprac <- inner_join(penguins, penguin_islands, by = "island", "species")
+
+joinprac
+
+
+#15.2
+crossing(a = letters[1:3], b = 1:2)
+
+#the code he gave us was wrong, so I corrected it:
+penguin_islands |>
+  semi_join(penguins, by = "island")
+
+#find rows that don't have a matching row:
+penguin_islands |> 
+  anti_join(penguins, by = "island")
+
+#15.4
+svalbard_islands <-  tribble( ~ island, ~ Latitude, ~ Longitude,
+   "Nordaustlandet", 79.558405, 24.017351,
+ "Prins Karls Forland", 78.554090, 11.256545)
+
+bind_rows(
+  Palmer = penguin_islands, 
+  Svalbard = svalbard_islands, 
+  .id = "Archipelago")
+
+#done with Datalab 3!!!!!!!
+```

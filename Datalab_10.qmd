@@ -1,0 +1,71 @@
+---
+title: "Datalab_10"
+format: html
+editor: visual
+    self-contained: true
+---
+
+```{r}
+#Mixed Effect Models
+
+#install.packages("lme4")
+library(lme4)
+library(conflicted)
+conflict_prefer_all("dplyr", quiet = TRUE)
+library(tidyverse)
+data(sleepstudy)
+library(performance)
+library(broom.mixed)
+#install.packages("broom.mixed")
+
+search()
+```
+
+```{r}
+#View(sleepstudy)
+
+#Predictor variable is number of days the subject had just 3 hours of sleep
+#The response variable is the reaction time in ms of the subject
+#The random effect is Days|Subject
+
+#remove day 0 and 1:
+dayz <- filter(sleepstudy, Days != c("0", "1"))
+
+View(dayz)
+
+ggplot(data = dayz,
+       mapping = aes(x = Subject, y = Days)) +
+  geom_point() +
+  labs(x = "Days", y = "Reaction (ms)") +
+  theme_bw()
+
+#is predictor an inner or outer variable?
+#IDK??????????
+#I think predictor is an outer variable because while there is variability within each student, there's also a lot of variability between students
+#Prof Telford said: its about how the predictor and the clusters are disposed
+#then he said: "if the clusters each contain only one level of the predictor it is an outer variable"
+```
+
+```{r}
+#from website
+
+#Random slope:
+fm1 <- lmer(Reaction ~ Days + (Days|Subject), sleepstudy)
+
+summary(fm1)
+
+#random intercept:
+fm2 <- lmer(Reaction ~ Days + (1|Subject) + (0+Days|Subject), sleepstudy)
+
+summary(fm2) #the variance is large, so each student has similar trend, but each student has a lot of variance between one another
+
+performance::check_model(fm1)
+performance::check_model(fm2)
+
+augment(fm1) |>
+  ggplot(aes(x = Days, y = Reaction)) +
+  geom_point() +
+  geom_line(aes(y = .fitted)) +
+  geom_line(aes(y = .fixed, color = "black", linewidth = 1.5)) +
+  theme(legend.position = "none")
+```

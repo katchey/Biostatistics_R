@@ -1,0 +1,273 @@
+---
+title: "Datalab 6"
+format: html
+editor: visual
+---
+
+```{r}
+#open packages
+
+library(tidyverse)
+library(palmerpenguins)
+library(pwr)
+
+#set options
+options(digits = 2)
+```
+
+```{r}
+#Datalab 6
+#link: https://raw.githubusercontent.com/biostats-r/bio300B/main/datalabs/datalab_6_descriptive_statistics.qmd
+
+#With the penguins data from the `palmerpenguins` package
+
+#1. calculate the minimum, maximum and range of bill lengths for Gentoo penguins
+
+penguins |> 
+  group_by(species) |> 
+  summarise(min = min(bill_length_mm, na.rm = TRUE))
+#min bill length for Gentoo is 40.9 mm
+
+penguins |> 
+  group_by(species) |> 
+  summarise(max = max(bill_length_mm, na.rm = TRUE))
+#max is 59.6 mm
+
+#penguins |>  #see better solution for range in next chunk#
+  #group_by(species) |> 
+  #summarise(range = range(bill_length_mm, na.rm = TRUE))
+
+
+# calculate the mean and median body mass for each species
+mean <- penguins |> 
+  group_by(species) |> 
+  summarise(mean = mean(body_mass_g, na.rm = TRUE)) #worked, see output
+
+penguins |> 
+  group_by(species) |> 
+  summarise(median = median(body_mass_g, na.rm = TRUE))
+
+penguins |>
+  group_by(species) |>
+  summarise(rnge = )
+
+# calculate the variance and the standard deviation of body mass for each species.
+penguins |> 
+  group_by(species) |> 
+  summarise(sd = sd(body_mass_g, na.rm = TRUE))
+
+penguins |> 
+  group_by(species) |> 
+  summarise(var = var(bill_length_mm, na.rm = TRUE))
+
+# Calculate the standard error of the mean for the body mass of each species (You do not need any extra packages for this)
+SE <- penguins |> 
+  group_by(species) |> 
+  summarise(standarderror = sd(body_mass_g, na.rm = TRUE)/ sqrt(length(na.omit(body_mass_g)))) #I think it worked, got how to do it from this link: https://www.programmingr.com/statistics/standard-error-in-r/
+
+SE
+
+# Calculate the 95% confidence interval for the mean body mass.
+#confint <- penguins |>
+   # group_by(species) |>
+   # summarise(confint = mean + 1.96 * SE
+#above was me trying... but then below I used Phind...
+              
+# using Phind...
+penguins %>%
+  group_by(species) %>%
+  summarise(mean_body_mass = mean(body_mass_g, na.rm = TRUE),
+            sd_body_mass = sd(body_mass_g, na.rm = TRUE),
+            n = n()) %>%
+  mutate(se_body_mass = sd_body_mass / sqrt(n),
+         lower.ci = mean_body_mass - 1.96 * se_body_mass,
+         upper.ci = mean_body_mass + 1.96 * se_body_mass)
+
+  
+```
+
+```{r}
+#differences in solutions here:
+gentoo <- penguins |> 
+  filter(species == "Gentoo")
+
+gentoo |>
+  drop_na(bill_length_mm) |>
+  summarise(
+    minbill = min(bill_length_mm),
+    maxbill = max(bill_length_mm),
+    range = maxbill - minbill
+  )
+
+#median and mean solution is better:
+penguins |> 
+  drop_na(body_mass_g) |>
+  group_by(species) |> 
+  summarise(
+    mean_mass = mean(body_mass_g),
+    median_mass = median(body_mass_g)
+  )
+
+#better sd and var solution:
+penguins |> 
+  drop_na(body_mass_g) |>
+  group_by(species) |> 
+  summarise(
+    var_mass = var(body_mass_g),
+    sd_mass = sd(body_mass_g)
+  )
+    
+
+#standard error:
+penguins |> 
+  drop_na(body_mass_g) |>
+  group_by(species) |> 
+  summarise(
+    sd_mass = sd(body_mass_g),
+    n = n(),
+    se_mass = sd_mass/sqrt(n)
+  ) # if there are NA in the data, cannot use n() as it finds number of rows, not number of valid entries. Would need something like sum(!is.na(body_mass_g))
+
+#95% conf intervals:
+penguins |> 
+  drop_na(body_mass_g) |>
+  group_by(species) |> 
+  summarise(
+    mean_mass = mean(body_mass_g),
+    sd_mass = sd(body_mass_g),
+    se_mass = sd_mass/sqrt(n()),
+    upper_ci = mean_mass + 1.96 * se_mass,
+    lower_ci = mean_mass - 1.96 * se_mass
+  )
+```
+
+```{r}
+library(ggbeeswarm)
+library()
+
+#2 (from solutions sheet...)
+## We want to test the hypothesis that bill length is sex dependent in Adelie penguins.
+
+# What is the null hypothesis
+#H0 is bill length is not determined by sex in Adelie penguins
+
+# Make a plot of the relevant data
+#| label: adelie
+adelie <- penguins |> 
+  filter(species == "Adelie") |> 
+  drop_na(sex, bill_length_mm)
+
+adelie |>
+  ggplot(aes(x = sex,
+             y = bill_length_mm,
+             color = sex,
+             fill = after_scale(colorspace::lighten(color, 0.8)))) +
+  geom_violin(draw_quantiles = 0.5) +
+  ggbeeswarm::geom_quasirandom() +
+  scale_color_brewer(palette = "Set1") +
+  labs(x = "Sex", y = "Bill length (mm)") +
+  scale_x_discrete(labels = str_to_title) + # capitalise x axis text
+  theme(legend.position = "none")
+
+# Choose a suitable statistical test and run it. 
+
+
+# Interpret the output.
+```
+
+```{r}
+#just inputting the answers from answer sheet... didn't do this datalab bc I was moving and busy...... 
+
+#| label: adelie-t-test
+adelie_summary <- adelie |> 
+  group_by(sex) |> 
+  drop_na(bill_length_mm) |> 
+  summarise(m = mean(bill_length_mm), 
+            sd = sd(bill_length_mm), 
+            n = n())
+
+adelie_summary
+
+mod <- t.test(bill_length_mm ~ sex, data = adelie)
+
+mod
+
+#Male Adelie have longer mean bill lengths than females. According to the t-test it is statistically significant (p-value = 5 * 10^-15)
+
+```
+
+```{r}
+#install.packages("pwr")
+library(pwr)
+
+#experiment: give ___ tomato plants fertilizer A and ___ plants fertilizer B, and ___ plants no fertilizer
+
+#do a power t-ttest
+
+#How many replicates do we need to have an 80% probability of detecting an effect of 0.1kg at p = 0.05 ?
+
+# A typical tomato plant yields 1 kg of tomatoes (sd = 0.2 kg)
+# A change of yield of 0.1 kg would be interesting
+
+#so we need to divide 0.1 / sd=0.2 = 0.5 to get d (which is Cohen's d, or effect size)
+
+pow <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.8)
+
+pow
+
+#so we need 64 plants in each experimental variable!
+
+The answer:
+  library(pwr)
+
+#need a t-test power analysis
+tomato_power <- pwr.t.test(
+  d = 0.5, # difference in mean (0.1)/ sd (0.2)
+  sig.level = 0.05, #typical value
+  power = 0.8 # typical value
+)
+
+tomato_power
+
+plot(tomato_power)
+
+#idk from here on...
+#install.packages("biostats.tutorials")
+#biostats.tutorials::power_lm_app(tomato_power)
+```
+
+```{r}
+#Exercise 3:
+#we need to use linear models (lm(), t.test())
+#H0: leaf area does not depend on (categorical) level of light
+
+#- independent obs
+#response variable continuous
+# predictor variable categorical
+# linear model (anova) lm()
+
+#from a site: You independent variable is type of fertilizer, and you treat crop fields with mixtures 1, 2 and 3 to find out if there is a difference in crop yield.
+#The null hypothesis (H0) of ANOVA is that there is no difference among group means. The alternative hypothesis (Ha) is that at least one group differs significantly from the overall mean of the dependent variable.
+
+#If you only want to compare two groups, use a t test instead.
+```
+
+```{r}
+#exercise 4: WRONGt-test bc predictor is categorical and response is continuous, but only two groups compared
+
+#answer is:
+# observations independent
+# response counts
+# predictor categorical
+# gemeralised linear model (poisson family) glm()
+```
+
+```{r}
+#ex. 5
+
+#response is binary (infested/not infested)
+#predictor is categorical
+#so use a Count/binary/proportion = generalised linear models (glm())
+
+#correct
+```

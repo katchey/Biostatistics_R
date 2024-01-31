@@ -1,0 +1,386 @@
+---
+oce---
+title: "Datalab_5"
+author: "Erika Scheibe"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+editor: visual
+---
+
+```{r}
+#Datalab_5: Chapter 23 only
+#23  Making maps in R
+
+#NB: a small-scale map example: map of the world/ ex: 1:100000000
+#a large-scale map example: map of a city. ex: 1:1000
+
+#23.1.1 rnaturalearth 
+#The rnaturalearth package makes Natural Earth data available. Natural Earth features include coastlines, rivers, bathymetry, political borders, roads and railways at scales 1:10m, 1:50m, and 1:110 million. The rnaturalearth package includes coastline and country data at the small and medium scale. A companion package rnaturalearthhires has the large scale (1:10 million) data. Other datasets from Natural Earth can be downloaded directly from the website or with ne_download()
+
+library(tidyverse)
+library(here)
+search()
+
+#install.packages("rnaturalearthhires", repos = "https://ropensci.r-universe.dev")
+#install.packages("rnaturalearth")
+#install.packages("rnaturalearthdata")
+library(rnaturalearth)
+library(rnaturalearthhires)
+library(rnaturalearthdata)
+
+world <- ne_countries(scale = 110, returnclass = "sf") 
+
+small_scale_map <- ggplot() +
+  geom_sf(data = world) +
+  coord_sf(xlim = c(-20, 50), ylim = c(33, 80)) +
+  ggtitle("Europe")
+
+europe <- ne_countries(scale = 50, returnclass = "sf", continent = "Europe") 
+medium_scale_map <- ggplot() +
+  geom_sf(data = europe) +
+  coord_sf(xlim = c(5, 30), ylim = c(55, 71)) +
+  ggtitle("Norden")
+
+norway <- ne_countries(scale = 10, returnclass = "sf", country = "Norway") 
+
+large_scale_map <- ggplot() +
+  geom_sf(data = norway) +
+  coord_sf(xlim = c(4, 9), ylim = c(59, 62)) +
+  ggtitle("Vestland")
+
+# combine maps with patchwork
+#install.packages("patchwork")
+library(patchwork)
+
+small_scale_map + medium_scale_map + large_scale_map
+
+search()
+```
+
+```{r}
+#23.1.2 ggOceanMaps
+
+#ggOceanMaps is, as the name suggests, focused on ocean map, with coastlines, bathymetry and also glaciers. ggOceanMaps requires ggOceanMapsData, which needs to be installed separately
+
+#This code was wrong in the instructions. I need "ggOceanMaps" not "ggOceanMapsData" now:
+remotes::install_github("MikkoVihtakari/ggOceanMaps")
+
+library(ggOceanMaps)
+
+#I was given this code, which should work though now that I read it again:
+remotes::install_github("MikkoVihtakari/ggOceanMapsData")
+#I think it should work  because it says this: 
+#ggOceanMaps is, as the name suggests, focused on ocean map, with coastlines, bathymetry and also glaciers. ggOceanMaps requires ggOceanMapsData, which needs to be installed separately. You do not need to load ggOceanMapsData wih library()
+
+#remotes::install_github("MikkoVihtakari/ggOceanMapsData") #Now ggOceanMaps is ready to use. 
+
+
+#limits are given longitude min/max, latitude min/max
+basemap(limits = c(-30, 30, 50, 80),
+        bathymetry = TRUE,
+        glaciers = TRUE)
+
+#Exercise: make a map of Nordic oceans with ggOceanMaps or rnaturalearth:
+exercise_map <- basemap(limits = c(-40, 30, 30, 70),
+                        bathymetry = TRUE)
+exercise_map
+```
+
+```{r}
+#23.1.3 Other vector files
+#stopped copying text here, other than particularly useful stuff
+
+library(sf)
+
+# https://kartkatalog.geonorge.no/metadata/norske-fylker-og-kommuner-illustrasjonsdata-2021-klippet-etter-kyst/f08fca3c-33ee-49b9-be9f-028ebba5e460)
+
+# This map will be out of date when fylker are reorganised
+fylker <- st_read("data/fylker2021.json")
+
+ggplot(fylker) +
+  geom_sf()
+
+#You can find the coordinate system of a sf class object with sf::st_crs().
+sf::st_crs(fylker)
+
+#If we need to change a coordinate reference systems, we can do that with sf::st_transform(). You need to know the EPSG code of the target reference system, or the wkt. The code for WGS84 is 4326.
+
+fylker2 <- sf::st_transform(fylker, crs = 4326)
+
+ggplot(fylker2) +
+  geom_sf()
+
+#geom_sf() will automatically transform coordinate systems (if they are specified).
+```
+
+```{r}
+#23.2 Tiled basemaps
+#okay.. google, more detail, etc.
+
+#23.3 Adding data to the basemap
+
+#Ended on starting the exercise that is related to the assignment:
+
+#Exercise
+
+#Otters (Lutra lutra) have re-established in Vestland. File ExcelExport_7972978_Page_1a.xlsx, (from https://artsobservasjoner.no, edited to remove an invalid unicode character) shows observations of otters in Vestland. Make a map of the observations. Relevant columns are “East Coord”, “North Coord”. The coordinates are UTM zone 33N, EPSG code 25833.
+
+#lutra <- st_read("data/ExcelExport_7972978_Page_1a.xlsx")
+
+#install.packages("ggspatial")
+
+library(ggspatial)
+library(readxl)
+
+#this one better:
+#lutra <- readxl::read_excel(
+  #path = here("data/ExcelExport_7972978_Page_1a.xlsx"),
+  #skip = 2
+#) |> 
+  #drop_na(activity) |>
+ # janitor::clean_names()
+
+#head(lutra)
+
+#this one less better:
+lutra <- readxl::read_excel(
+  path = here("data/ExcelExport_7972978_Page_1a.xlsx"),
+  skip = 2 # remove junk at start of file
+) |>
+  janitor::clean_names() |>
+  drop_na(activity)
+#or maybe I should use st_read to open the file instead, since it's like points to be plotted on a map. See 23.3.1 points/lines/polygons
+
+#Then I'd do this to plot it, see 23.3.1
+# with rnaturalearth
+#ggplot() +
+ # geom_sf(data = europe) +
+ # geom_sf(data = aquaculture, colour = "red") +
+#  coord_sf(xlim = c(5, 30), ylim = c(55, 71))  
+
+#then this:
+#install.packages("ggmap")
+
+# with ggmap
+library(ggmap)
+
+vestland <- get_map(
+  location = c(4,  59, 8, 62),
+  source = "stamen"           
+)
+
+# needs inherit.aes = FALSE
+ggmap(vestland) + 
+ geom_sf(data = lutra, colour = "red", inherit.aes = FALSE, linewidth = 1) # thicker lines to make visible
+
+head(lutra)
+#View(lutra)
+
+#to select only the columns I need, potentially: (change variables)
+#lutra |>
+ # select(east_coord, north_coord)
+
+#check then convert decimal system before the above code:
+sf::st_crs(lutra)
+
+#found in section 23.1.3: geom_sf() will automatically transform coordinate systems (if they are specified).
+geom_sf(lutra)
+
+#No CRS, so need to give it one
+
+# try to use parzer package... idk if the degree thing is right or not.
+#install.packages("parzer")
+#library(parzer)
+#parse_lat(6884305)
+
+#install.packages("rgdal") #install to transform coordinate reference system with the spTransform function
+#library(rgdal)
+
+lutra1 <- sf::st_transform(lutra, crs = 25833)
+
+#trying other stuff
+print(st_crs(lutra)) #check CRS
+
+#check the class of the object: 
+print(class(lutra))
+
+
+lutra <- st_set_crs(lutra, 4326)
+
+#try this:
+
+
+longlatcoor<-spTransform(utmcoor,CRS("+proj=longlat"))
+
+
+#need to clean data first. After that, maybe this code will work:?
+basemap(data = lutra) +
+  geom_spatial_path(aes(x = "East Coord", y = "North Coord"))
+
+#maybe I have to combine this map with a map of Norway like in section 23.1.3: 
+norway <- ne_countries(scale = 10, returnclass = "sf", country = "Norway") 
+## combine maps with patchwork
+#library(patchwork)
+#small_scale_map + medium_scale_map + large_scale_map
+
+large_scale_map <- ggplot() +
+  geom_sf(data = norway) +
+  coord_sf(xlim = c(4, 9), ylim = c(59, 62)) +
+  ggtitle("Vestland")
+
+# combine maps with patchwork
+install.packages("patchwork")
+library(patchwork)
+
+lutra + large_scale_map
+
+#and 23.1.1: to plot with lakes and stuff at Norwegian scale...
+
+#and 23.2.1: ggspatial
+library(ggspatial)
+#then see the code for making map of basically Alver!
+
+#Exercise 1 in Ch. 14:
+lutra |>
+   dplyr::select(-year)
+
+#Need to use "Found dead", "Roadkill", and "Drowned in fishing net" inside column called "activity"
+
+
+```
+
+```{r}
+#23.3.2 Cloropleth maps
+p_discharge <- readxl::read_excel(path = "data/05280_20230421-012359.xlsx",
+                                  skip = 4, n_max = 11) |>
+  janitor::clean_names() |> 
+  separate_wider_regex(
+    cols = x1, # split fist column
+    patterns = c(Fylkesnummer = "\\d{2}", " ", Fylkesnavn = ".*"))# using regular expressions
+# \\d{2} = 2 numbers, " " = space, ".*" = any number of any character, ie everything else
+
+# join to fylker
+fylker_discharge <- fylker |> 
+  left_join(p_discharge, by = "Fylkesnummer")
+
+ggplot(fylker_discharge) +
+  geom_sf(aes(fill = total_discharge)) +
+  labs(fill = "Wastewater\nP discharge\n(tonnes)")
+
+#exercise: 23.3.2
+#With rnaturalearth data, make a world map that shows the population (column pop_est) of each country.
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+world <- ne_countries(scale = 110, returnclass = "sf") 
+
+worldd <- ggplot() +
+  geom_sf(data = world) +
+  #coord_sf(xlim = c(-20, 50), ylim = c(33, 80)) +
+  ggtitle("World")
+
+worldd
+
+worlddd <- worldd |> 
+  select(pop_est)
+
+#idk what the fuck im doing
+```
+
+```{r}
+#23.3.3 Rasters
+library(terra)
+
+#install.packages("tidyterra")
+library(tidyterra)
+
+#didn't get the file..
+# import digital elevation model
+# data from https://topotools.cr.usgs.gov/gmted_viewer/viewer.htm
+norway_dem <- rast("data/50N000E_20101117_gmted_med300.tif")
+
+# make coastline mask
+coast_vector <- fylker |> 
+  # transfrom to crs of raster
+  st_transform(crs = terra::crs(norway_dem)) |> 
+  # convert to spatVector
+  vect()  
+
+# crop to vestland and rename the data layer
+vestland_extent <- ext(4.5, 9, 59, 62)
+vestland_dem <- crop(norway_dem, vestland_extent) |> 
+  mask(coast_vector) |> 
+  rename(Elevation = `50N000E_20101117_gmted_med300`)
+
+# plot
+ggplot() +
+  geom_spatraster(data = vestland_dem) +
+  scale_fill_viridis_c(na.value = "grey90") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(fill = "Elevation, m")
+```
+
+```{r}
+#23.4 Scalebars, north pointer etc
+
+#scale bars may be inaccurate at small scales
+
+# with rnaturalearth
+ggplot() +
+  geom_sf(data = norway) +
+  coord_sf(xlim = c(4, 9), ylim = c(59, 62)) +
+  annotation_scale(location = "br") # br = bottom right
+#Scale on map varies by more than 10%, scale bar may be inaccurate
+
+
+
+#23.5 Hints for maps
+#If you need multiple colour scales, the ggnewscale package can help. Use inset maps (Chapter 22) to show your location in context.
+
+
+#23.6 Projections
+#ggOceanMaps can automatically select a projection based on the location, otherwise the map projection can be set using coord_sf().
+
+#The projection wizard can help choose a projection for a given area (copy the PROJ string).
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+default <- ggplot(world) + geom_sf()
+
+mollweide <- ggplot(world) + # Equal-area world map projection
+  geom_sf() + 
+  coord_sf(crs = "+proj=moll") # projection specified with a 'proj' string
+
+sf_use_s2(FALSE) # might need to turn spherical geometry off for some projections
+
+polar_lambert <-  world |> 
+  # !important - don't crop too tightly or crop lines will show in plot
+  st_crop(y = c(xmin = -180, ymin = 50, xmax = 180, ymax = 90)) |> 
+  ggplot() + # Transverse cylindrical equal-area
+  geom_sf() +
+  # projection specified with a proj string
+  coord_sf(crs = '+proj=laea +lon_0=14.4140625 +lat_0=90 +datum=WGS84 +units=m +no_defs', 
+           ylim = c(100000, -3500000), # xlim/ylim in units of projection
+           xlim = c(-2000000, 2000000)) # here in metres
+
+default/mollweide/polar_lambert
+
+#Exercise 23.6: Change the projection of one of the small-scale maps you made previously.
+
+worldd
+
+exwrld <- ggplot(worldd) +
+  geom(sf) +
+  coord_sf(crs = "+proj=moll")
+
+# also didn't work...
+```
+
+```{r}
+#23.7 Interactive maps
+#cool.
+```

@@ -1,0 +1,198 @@
+---
+title: "Datalab_7_Linear_Regression"
+author: "Erika"
+format: html
+editor: visual
+---
+
+```{r}
+#datalab 7
+
+library(tidyverse)
+library(palmerpenguins)
+library(car)
+library(broom)
+search()
+```
+
+```{r}
+### Correlations
+
+# With the Penguins dataset, find the Pearson correlation for bill length and bill depth for Gentoo penguins.
+
+#pear_lgnth_dpth <- penguins |>
+  #group_by(species) |>
+   # cor.test(penguins$bill_length_mm,
+    #penguins$bill_depth_mm, 
+    #use = "pairwise.complete")
+
+gentoo_penguins <- penguins %>%
+  filter(species == "Gentoo") # Filter the penguins data frame for Gentoo penguins
+
+cor_test_result <- cor.test(gentoo_penguins$bill_length_mm, gentoo_penguins$bill_depth_mm, use = "pairwise.complete") # Perform the correlation test
+
+print(cor_test_result) # Print the correlation test result
+
+
+#another method:
+pear_lgnth_dpth <- penguins %>%
+  group_by(species) %>%
+  summarise(correlation = cor(bill_length_mm, bill_depth_mm, use = "pairwise.complete"))
+
+#another method, from notes:
+gent_cor <- penguins |>
+  filter(species == "Gentoo")
+
+mod <- lm(bill_length_mm ~ bill_depth_mm, data = gent_cor)
+
+mod
+
+summary(mod)
+
+
+```
+
+```{r}
+# Find the confidence intervals of this correlation. Is it significant?
+# 0.5262952 0.7365271 are the conf intervals. It is significant.
+
+ct <- cor.test(gentoo$bill_length_mm, gentoo$bill_depth_mm, use = "complete.obs")
+
+ct
+
+# extracting components with broom
+glance(ct) |> select(starts_with("conf"))
+
+# or without
+ct$p.value < 0.05
+```
+
+```{r}
+# Calculate r^2^. How much of the variation in the data is explained by the correlation.
+
+corr <- cor(gentoo$bill_length_mm, gentoo$bill_depth_mm, use = "complete.obs")
+
+corr
+
+corr^2 * 100 #to get r^2
+
+#For example, an R Squared value of 0.9 would imply that 90% of the target variance can be explained by the model features, whilst a value of 0.2 would suggest that the model features are only able to account for 20% of the variance.
+
+#so 58% of the variance can be explained by the correlation
+```
+
+```{r}
+# Find the correlation between bill length and bill depth for
+    #- each species separately 
+    #- all species combined
+
+ea_spp <- penguins |>
+  group_by(species) |>
+  drop_na(bill_length_mm, bill_depth_mm) |>
+  summarise(answer = cor(bill_length_mm, bill_depth_mm))
+
+ea_spp #all positive correlations
+
+#now all spp combined:
+
+all_spp <- penguins |>
+  drop_na(bill_length_mm, bill_depth_mm) |>
+  summarise(answer2 = cor(bill_length_mm, bill_depth_mm))
+
+all_spp #now it's a neg correlation
+```
+
+```{r}
+# Make a figure to explain the apparent conflict between these results
+
+ggplot(penguins, aes(x = bill_length_mm, y = bill_depth_mm, color = species)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = lm) +
+  geom_smooth(aes(group = 1, colour = "All species"), method = "lm") +
+  scale_color_brewer(palette = "Set1", limits = c("All species", "Adelie", "Chinstrap", "Gentoo")) +
+  labs(x = "Bill length (mm)", y = "Bill depth (mm)")
+```
+
+```{r}
+#Q 3
+
+#| label: adelie-raw-plot
+#| 
+library(ggbeeswarm)
+
+adelie <- penguins |> filter(species == "Adelie")
+
+adelie
+
+island_mass_plot <- ggplot(adelie, aes(x = island, y = body_mass_g)) +
+  geom_violin() +
+  geom_quasirandom() + 
+  labs(x = "Island", y = "Body mass g")
+
+island_mass_plot
+
+mod2 <- lm(body_mass_g ~ island, data = adelie)
+
+mod2
+
+coef(mod2) 
+coef(mod2)[1]  # mean mass on Bisco Island
+coef(mod2)[2] # difference in mass between Bisco and Dream
+coef(mod2)[3] # difference in mass between Bisco and Torgersen 
+
+#Is the model statistically significant?
+
+av2 <- car::Anova(mod2)
+av2
+av2$`Pr(>F)`[1] < 0.05
+
+#No, it's not statistically sig
+
+#- Include the predicted mass with confidence interval on the plot
+
+nd <- distinct(adelie, island)
+
+pred_mass <- augment(mod2, newdata = nd, interval = "confidence")
+
+island_mass_plot +
+  geom_pointrange(aes(y = .fitted, ymin = .lower, ymax = .upper), data = pred_mass, colour = "red", size = 1.5)
+  
+#- Do a post-hoc test to test for differences between pairs of islands (in real analysis only do this if overall model is significant) (Hint - use `multcomp` package - you need to have loaded `conflicted` package or `select` from `dplyr` will be masked)
+#- plot the result of the post-hoc test and interpret the results
+
+#| label: multcomp-plot
+
+#install.packages("multcomp")
+library(multcomp)
+library(conflicted)
+conflict_prefer("filter", winner = "dplyr")
+
+mc <- glht(model = mod2, linfct = mcp(island = "Tukey"))
+mc
+
+plot(mc)
+
+ggplot(confint(mc), aes(x = lhs, y = estimate, ymin = lwr, ymax = upr)) +
+  geom_pointrange()+
+  labs(x = NULL)
+```
+
+```{r}
+## Exploring diagnostic plots
+
+#Use the `influence_leverage_app()` from biostats.tutorials package to explore how the diagnostic plots look with a outlier, influential observation, or observation with high leverage.
+
+#Open the app and move the red point. Diagnostic plot on the left shows model without the red point, plot on the right includes the red point.
+
+#Try to:
+
+#- Make the R2 as high as possible
+# Make the R2 as low as possible
+
+#And look at the different diagnostic plots
+
+library(biostats.tutorials)
+
+influence_leverage_app()
+
+```

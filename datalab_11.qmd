@@ -1,0 +1,59 @@
+---
+title: "datalab_11_surv"
+format: html
+editor: visual
+---
+
+```         
+  You have done an experiment where you have tested how the castrating bacterium
+  _Pasteuria ramosa_ affects survival of its crustacean host _Daphnia magna_
+  
+  - Create a survival plot 
+  
+  - Test the hypothesis: H0: Daphnia magna infected by Pasteuria ramosa has the same 
+  survival as uninfected individuals. 
+  
+  - Use the model to calculate the expected mean age at death for the two groups 
+  (infected and uninfected)
+```
+
+```{r}
+library(survival)
+#install.packages("survival")
+library(here)
+library(ggfortify)
+```
+
+```{r}
+dap <- read_delim(file = "data/daphnia_survival.csv", skip = 9) |>
+  janitor::clean_names() 
+
+View(dap)
+
+```
+
+```{r}
+#create survival plot
+
+mod_surv <- survfit(Surv(day_of_death, dead) ~ group, data = dap)
+
+mod_surv
+
+#plotting the model:
+autoplot(mod_surv)
+```
+
+```{r}
+ #- Test the hypothesis: H0: Daphnia magna infected by Pasteuria ramosa has the same survival as uninfected individuals. 
+
+mod_diff <- survdiff(Surv(day_of_death, dead) ~ group, data = dap)
+
+mod_diff # can reject H0: p=4e-05
+
+```
+
+```{r}
+#  - Use the model to calculate the expected mean age at death for the two groups (infected and uninfected)
+
+
+```
